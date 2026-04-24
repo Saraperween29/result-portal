@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Result Portal</title>
+
+  <!-- Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Poppins', sans-serif;
+    }
+
+    body {
+      height: 100vh;
+      background: radial-gradient(circle at top left, #0f2027, #203a43, #2c5364);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    /* Floating animation */
+    @keyframes float {
+      0% { transform: translateY(0px); }
+      50% { transform: translateY(-10px); }
+      100% { transform: translateY(0px); }
+    }
+
+    .container {
+      width: 380px;
+      padding: 35px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(25px);
+      box-shadow: 
+        0 0 40px rgba(0, 255, 255, 0.2),
+        inset 0 0 20px rgba(255,255,255,0.05);
+      color: white;
+      text-align: center;
+      animation: float 4s ease-in-out infinite;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    h2 {
+      margin-bottom: 25px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      background: linear-gradient(90deg, #00f2fe, #4facfe);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    input {
+      width: 100%;
+      padding: 13px;
+      margin: 10px 0;
+      border: none;
+      border-radius: 12px;
+      outline: none;
+      font-size: 14px;
+      background: rgba(255,255,255,0.08);
+      color: white;
+      transition: all 0.3s ease;
+      border: 1px solid transparent;
+    }
+
+    input::placeholder {
+      color: rgba(255,255,255,0.6);
+    }
+
+    input:focus {
+      border: 1px solid #00f2fe;
+      box-shadow: 0 0 12px rgba(0, 242, 254, 0.7);
+      transform: scale(1.05);
+      background: rgba(255,255,255,0.12);
+    }
+
+    button {
+      width: 100%;
+      padding: 13px;
+      margin-top: 18px;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      color: white;
+      cursor: pointer;
+      background: linear-gradient(135deg, #00f2fe, #4facfe);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Glow effect */
+    button::before {
+      content: "";
+      position: absolute;
+      width: 200%;
+      height: 200%;
+      top: -50%;
+      left: -50%;
+      background: radial-gradient(circle, rgba(255,255,255,0.3), transparent 60%);
+      opacity: 0;
+      transition: 0.4s;
+    }
+
+    button:hover::before {
+      opacity: 1;
+    }
+
+    button:hover {
+      transform: scale(1.08);
+      box-shadow: 0 0 25px rgba(0, 242, 254, 0.8);
+    }
+
+    #output {
+      margin-top: 18px;
+      font-weight: bold;
+      color: #00f2fe;
+      text-shadow: 0 0 10px rgba(0, 242, 254, 0.9);
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+  <h2>📊 Result Portal</h2>
+
+  <input id="id" placeholder="Student ID">
+  <input id="name" placeholder="Name">
+  <input id="dept" placeholder="Department">
+  <input id="sgpa" placeholder="SGPA">
+  <input id="cgpa" placeholder="CGPA">
+
+  <button onclick="sendData()">Add Result</button>
+
+  <div id="output"></div>
+</div>
+
+<script>
+async function sendData() {
+  const data = {
+    student_id: document.getElementById("id").value,
+    name: document.getElementById("name").value,
+    department: document.getElementById("dept").value,
+    semester: 3,
+    subjects: [
+      { name: "DSA", marks: 90 },
+      { name: "DBMS", marks: 88 }
+    ],
+    sgpa: parseFloat(document.getElementById("sgpa").value),
+    cgpa: parseFloat(document.getElementById("cgpa").value)
+  };
+
+  try {
+    const res = await fetch("http://localhost:3000/api/publish", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(data)
+    });
+
+    const text = await res.text();
+    document.getElementById("output").innerText = text;
+  } catch (err) {
+    document.getElementById("output").innerText = "❌ Server not running!";
+  }
+}
+</script>
+
+</body>
+</html>
