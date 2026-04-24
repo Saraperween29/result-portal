@@ -1,0 +1,274 @@
+{
+  "info": {
+    "_postman_id": "result-portal-collection-v1",
+    "name": "Real-Time College Exam Result Portal",
+    "description": "Complete API test collection for the Result Portal. Covers all endpoints: result lookup (with cache-aside), admin publishing, leaderboard, and statistics.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "BASE_URL", "value": "http://localhost:5000/api" },
+    { "key": "ADMIN_TOKEN", "value": "" },
+    { "key": "STUDENT_ID", "value": "CSE2021001" }
+  ],
+  "item": [
+    {
+      "name": "🔐 Authentication",
+      "item": [
+        {
+          "name": "Admin Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.token) {",
+                  "  pm.collectionVariables.set('ADMIN_TOKEN', json.token);",
+                  "  pm.test('Token received', () => pm.expect(json.token).to.be.a('string'));",
+                  "}",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{BASE_URL}}/admin/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"Admin@123\"\n}"
+            }
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n  \"username\": \"admin\",\n  \"role\": \"admin\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "📋 Results",
+      "item": [
+        {
+          "name": "GET Student Result (Cache-Aside)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Success true', () => pm.expect(json.success).to.be.true);",
+                  "pm.test('Has source field (cache/database)', () => pm.expect(json.source).to.be.oneOf(['cache', 'database']));",
+                  "pm.test('Has results array', () => pm.expect(json.data.results).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/result/{{STUDENT_ID}}",
+            "description": "Demonstrates Cache-Aside Pattern:\n1st call: source=database (cache miss → stores in Redis)\n2nd call: source=cache (served from Redis in <5ms)"
+          },
+          "response": [
+            {
+              "name": "Cache MISS (1st call)",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"source\": \"database\",\n  \"data\": {\n    \"student_id\": \"CSE2021001\",\n    \"student_info\": { \"name\": \"Aarav Sharma\", \"department\": \"CSE\" },\n    \"results\": [\n      {\n        \"semester\": 3,\n        \"sgpa\": 9.15,\n        \"cgpa\": 9.12,\n        \"class_rank\": 2,\n        \"department_topper\": false,\n        \"result_status\": \"PASS\"\n      }\n    ],\n    \"latest_cgpa\": 9.12\n  }\n}"
+            },
+            {
+              "name": "Cache HIT (2nd call)",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"source\": \"cache\",\n  \"data\": { ... }\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET Cache TTL",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/result/cache/ttl/{{STUDENT_ID}}",
+            "description": "Returns remaining TTL for cached result. Demonstrates Redis TTL expiry."
+          },
+          "response": [
+            {
+              "name": "Cache exists",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"student_id\": \"CSE2021001\",\n  \"ttl_seconds\": 547,\n  \"message\": \"Cache expires in 547s\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST Unview Result",
+          "request": {
+            "method": "POST",
+            "url": "{{BASE_URL}}/result/unview",
+            "description": "Decrements live viewer counter (Redis DECR)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔧 Admin",
+      "item": [
+        {
+          "name": "POST Publish Results (Bulk)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{ADMIN_TOKEN}}" }
+            ],
+            "url": "{{BASE_URL}}/admin/publish-results",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"results\": [\n    {\n      \"student_id\": \"CSE2021001\",\n      \"department\": \"CSE\",\n      \"semester\": 5,\n      \"academic_year\": \"2024-25\",\n      \"subjects\": [\n        { \"subject_code\": \"CS501\", \"subject_name\": \"Machine Learning\", \"credits\": 4, \"marksObtained\": 88, \"maxMarks\": 100 },\n        { \"subject_code\": \"CS502\", \"subject_name\": \"Cloud Computing\", \"credits\": 3, \"marksObtained\": 92, \"maxMarks\": 100 },\n        { \"subject_code\": \"CS503\", \"subject_name\": \"Compiler Design\", \"credits\": 4, \"marksObtained\": 79, \"maxMarks\": 100 }\n      ]\n    }\n  ]\n}",
+              "description": "Triggers: SGPA compute → CGPA compute → rank update → cache invalidation → leaderboard update"
+            }
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Results published successfully\",\n  \"published\": 1,\n  \"errors\": 0,\n  \"log\": [\n    { \"student_id\": \"CSE2021001\", \"status\": \"published\", \"sgpa\": 8.73, \"cgpa\": 9.01 }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET Admin Overview Stats",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ADMIN_TOKEN}}" }],
+            "url": "{{BASE_URL}}/admin/stats/overview"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏆 Leaderboard",
+      "item": [
+        {
+          "name": "GET Top 10 Leaderboard",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Data is array', () => pm.expect(json.data).to.be.an('array'));",
+                  "pm.test('Source is cache or database', () => pm.expect(json.source).to.be.oneOf(['cache', 'database']));",
+                  "pm.test('Entries have rank', () => json.data.forEach(e => pm.expect(e.rank).to.be.a('number')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/leaderboard",
+            "description": "Returns top 10 from Redis ZREVRANGE. Falls back to MongoDB if Redis unavailable."
+          },
+          "response": [
+            {
+              "name": "From Redis",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"source\": \"cache\",\n  \"data\": [\n    { \"student_id\": \"CSE2021004\", \"sgpa\": \"9.75\", \"rank\": 1, \"name\": \"Sneha Gupta\", \"department\": \"CSE\" },\n    { \"student_id\": \"CSE2021001\", \"sgpa\": \"9.15\", \"rank\": 2, \"name\": \"Aarav Sharma\", \"department\": \"CSE\" }\n  ],\n  \"liveViewers\": 3\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET Live Viewers",
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/leaderboard/live-viewers"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📊 Statistics",
+      "item": [
+        {
+          "name": "GET Department Stats (CSE)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Has semester data', () => pm.expect(json.data).to.be.an('array'));",
+                  "pm.test('Has avg_sgpa', () => pm.expect(json.data[0].avg_sgpa).to.be.a('number'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{BASE_URL}}/stats/department/CSE",
+            "description": "MongoDB aggregation: avg/max/min SGPA + pass/fail counts per semester"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"department\": \"CSE\",\n  \"data\": [\n    {\n      \"semester\": 3,\n      \"avg_sgpa\": 7.85,\n      \"max_sgpa\": 9.75,\n      \"min_sgpa\": 4.21,\n      \"total_students\": 5,\n      \"pass_count\": 4,\n      \"fail_count\": 1,\n      \"pass_percentage\": 80.0\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET Overview Stats (All Depts)",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/stats/overview" }
+        },
+        {
+          "name": "GET Highest Marks by Subject",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{BASE_URL}}/stats/subjects/highest?department=CSE&semester=3",
+              "query": [
+                { "key": "department", "value": "CSE" },
+                { "key": "semester", "value": "3" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Pass/Fail Stats",
+          "request": { "method": "GET", "url": "{{BASE_URL}}/stats/pass-fail" }
+        }
+      ]
+    },
+    {
+      "name": "❤️ Health Check",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:5000/health",
+            "description": "Checks MongoDB and Redis connectivity"
+          },
+          "response": [
+            {
+              "name": "All Services Up",
+              "code": 200,
+              "body": "{\n  \"status\": \"ok\",\n  \"timestamp\": \"2024-04-10T10:00:00.000Z\",\n  \"services\": {\n    \"mongodb\": \"connected\",\n    \"redis\": \"connected\"\n  }\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
